@@ -1,5 +1,3 @@
-import type React from "react";
-
 export interface Post {
   id: string;
   authorId: string;
@@ -8,6 +6,8 @@ export interface Post {
 
   createdAt: Date;
   updatedAt?: Date;
+
+  parentId: string | null;
 
   likes: number;
   replies: number;

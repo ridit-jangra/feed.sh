@@ -106,3 +106,10 @@ export async function toggleLike(postId: string): Promise<boolean> {
   await supabase.from("likes").insert({ post_id: postId, user_id: userId });
   return true;
 }
+
+export async function createReply(
+  parentId: string,
+  content: string,
+): Promise<Post> {
+  return createPost(null, content, parentId);
+}

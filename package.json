@@ -1,6 +1,6 @@
 {
   "name": "@ridit/feed.sh",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Doom scrolling, in your terminal",
   "author": "Ridit Jangra <riditjangra09@gmail.com> (https://ridit.space)",
   "main": "dist/index.mjs",

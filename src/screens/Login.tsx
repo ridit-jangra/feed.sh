@@ -1,52 +1,40 @@
 import React, { useState } from "react";
-import { Box, Text } from "ink";
-import TextInput from "../components/TextInput";
+import { Box, Text, useInput } from "ink";
 import { getTheme } from "../utils/theme";
-import { requestCode, verifyCode } from "../utils/auth";
+import { loginWithHackClub } from "../utils/auth";
 import type { Session, User } from "@supabase/supabase-js";
 
-type Stage = "email" | "code";
+type Stage = "idle" | "waiting" | "error";
 
 type Props = {
   columns: number;
   onAuthed: (session: Session, user: User) => void;
 };
 
-export function Login({ columns, onAuthed }: Props) {
-  const [stage, setStage] = useState<Stage>("email");
-  const [email, setEmail] = useState("");
-  const [emailOffset, setEmailOffset] = useState(0);
-  const [code, setCode] = useState("");
-  const [codeOffset, setCodeOffset] = useState(0);
+export function Login({ onAuthed }: Props) {
+  const [stage, setStage] = useState<Stage>("idle");
+  const [authUrl, setAuthUrl] = useState("");
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
   const theme = getTheme();
 
-  async function submitEmail() {
-    if (busy) return;
+  async function start() {
+    setStage("waiting");
     setError("");
-    setBusy(true);
-    const res = await requestCode(email);
-    setBusy(false);
-    if (res.ok) {
-      setStage("code");
-    } else {
-      setError(res.error);
-    }
-  }
-
-  async function submitCode() {
-    if (busy) return;
-    setError("");
-    setBusy(true);
-    const res = await verifyCode(email, code);
-    setBusy(false);
+    setAuthUrl("");
+    const res = await loginWithHackClub(setAuthUrl);
     if (res.ok) {
       onAuthed(res.data.session, res.data.user);
     } else {
       setError(res.error);
+      setStage("error");
     }
   }
+
+  useInput((_input, key) => {
+    if ((stage === "idle" || stage === "error") && key.return) {
+      void start();
+    }
+  });
 
   return (
     <Box flexDirection="column" paddingX={1} gap={1}>
@@ -54,60 +42,32 @@ export function Login({ columns, onAuthed }: Props) {
         feed.sh
       </Text>
 
-      {stage === "email" ? (
-        <>
+      {stage === "waiting" ? (
+        <Box flexDirection="column" gap={1}>
           <Text color={theme.secondaryText}>
-            sign in with your email — we'll send a code.
+            opening Hack Club in your browser…
           </Text>
-          <Box>
-            <Text color={theme.primary}>{"› "}</Text>
-            <TextInput
-              value={email}
-              onChange={setEmail}
-              columns={columns - 4}
-              cursorOffset={emailOffset}
-              onChangeCursorOffset={setEmailOffset}
-              focus={!busy}
-              placeholder="you@example.com"
-              onSubmit={submitEmail}
-            />
-          </Box>
-        </>
+          {authUrl && (
+            <Box flexDirection="column">
+              <Text color={theme.secondaryText}>
+                if it didn't open, visit:
+              </Text>
+              <Text color={theme.primary}>{authUrl}</Text>
+            </Box>
+          )}
+          <Text color={theme.secondaryText}>
+            waiting for you to finish signing in…
+          </Text>
+        </Box>
       ) : (
         <>
+          <Text color={theme.secondaryText}>sign in with your Hack Club account.</Text>
+          {error && <Text color={theme.error}>{error}</Text>}
           <Text color={theme.secondaryText}>
-            enter the 8-digit code sent to {email}.
+            enter: {stage === "error" ? "try again" : "sign in with Hack Club"}
           </Text>
-          <Box>
-            <Text color={theme.primary}>{"› "}</Text>
-            <TextInput
-              value={code}
-              onChange={setCode}
-              columns={columns - 4}
-              cursorOffset={codeOffset}
-              onChangeCursorOffset={setCodeOffset}
-              focus={!busy}
-              placeholder="00000000"
-              onSubmit={submitCode}
-              onEscape={() => {
-                setStage("email");
-                setCode("");
-                setCodeOffset(0);
-                setError("");
-              }}
-            />
-          </Box>
         </>
       )}
-
-      {busy && <Text color={theme.secondaryText}>…sending</Text>}
-      {error && <Text color={theme.error}>{error}</Text>}
-
-      <Text color={theme.secondaryText}>
-        {stage === "email"
-          ? "enter: send code"
-          : "enter: sign in · esc: change email"}
-      </Text>
     </Box>
   );
 }

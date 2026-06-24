@@ -4,7 +4,7 @@ import { join, dirname } from "path";
 import { homedir } from "os";
 import { SESSION_PATH } from "./env";
 
-const SUPABASE_URL =
+export const SUPABASE_URL =
   process.env.SUPABASE_URL ?? "https://iezrpwcedsdasziyzqzv.supabase.co";
 const SUPABASE_ANON_KEY =
   process.env.SUPABASE_ANON_KEY ??

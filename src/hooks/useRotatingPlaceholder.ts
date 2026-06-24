@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-const HINTS = ["feed", "journal new", "project pixl", "search meridia"];
+const HINTS = ["feed", "create", "done", "search pixl"];
 
 export function useRotatingPlaceholder(
   active: boolean,

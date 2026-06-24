@@ -30,12 +30,10 @@ export type Props = {
   readonly onChangeCursorOffset: (offset: number) => void;
   readonly onEscape?: () => void;
   disabled?: boolean;
+  enterInsertsNewline?: boolean;
+  clearOnEscape?: boolean;
 };
 
-// SGR mouse reports: ESC [ < btn ; col ; row (M=press, m=release).
-// The ESC is optional because Ink strips a leading ESC from unresolved
-// sequences before handing them to useInput (see ink/build/hooks/use-input.js),
-// so these arrive here as a bare "[<…M".
 const MOUSE_SEQUENCE = /\x1b?\[<\d+;\d+;\d+[Mm]/g;
 
 export default function TextInput({
@@ -62,6 +60,8 @@ export default function TextInput({
   onChangeCursorOffset,
   onEscape,
   disabled,
+  enterInsertsNewline = false,
+  clearOnEscape = false,
 }: Props): JSX.Element {
   const { onInput, renderedValue } = useTextInput({
     value: originalValue,
@@ -84,6 +84,8 @@ export default function TextInput({
     onOffsetChange: onChangeCursorOffset,
     onEscape,
     disabled,
+    enterInsertsNewline,
+    clearOnEscape,
   });
 
   const [pasteState, setPasteState] = React.useState<{

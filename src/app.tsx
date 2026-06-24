@@ -1,7 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { Feed } from "./screens/Feed";
+import { Create } from "./screens/Create";
 import TextInput from "./components/TextInput";
+import { getSession } from "./utils/auth";
+import { Login } from "./screens/Login";
 import { getTheme } from "./utils/theme";
 import { useTerminalSize } from "./hooks/useTerminalSize";
 import { getFeed, createPost, search } from "./db/store";
@@ -12,19 +15,26 @@ import {
   CommandSuggestions,
   getMatchingCommands,
 } from "./components/CommandSuggestions";
-import type { Post } from "./types";
+import type { Focus, Post } from "./types";
 import { useMouseWheel } from "./hooks/useMouseWheel";
 
 export function App() {
   const { columns, rows } = useTerminalSize();
   const [value, setValue] = useState("");
   const [cursorOffset, setCursorOffset] = useState(0);
+  const [focus, setFocus] = useState<Focus>("command");
+  const [screen, setScreen] = useState<"feed" | "create">("feed");
   const [posts, setPosts] = useState<Post[]>(() => getFeed());
   const [scrollTop, setScrollTop] = useState(0);
   const [lastTypedInput, setLastTypedInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [historyIndex, setHistoryIndex] = useState(0);
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [contentFocused, setContentFocused] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [authed, setAuthed] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   const INPUT_RESERVED = 2;
@@ -41,8 +51,45 @@ export function App() {
     setScrollTop(maxScroll);
   }, [maxScroll]);
 
+  useEffect(() => {
+    getSession().then((session) => {
+      setAuthed(!!session);
+      setAuthChecked(true);
+    });
+  }, []);
+
   function onSubmit(input: string) {
-    if (!input.trim()) return;
+    const trimmed = input.trim();
+    if (!trimmed) return;
+
+    const cmd = trimmed.startsWith("/") ? trimmed.slice(1) : trimmed;
+
+    if (cmd === "create") {
+      setScreen("create");
+      setFocus("title");
+    } else if (cmd === "done" && screen === "create") {
+      const body = title.trim() ? `# ${title.trim()}\n${content}` : content;
+      if (body.trim()) {
+        createPost("ridit", body);
+        setPosts(getFeed());
+      }
+      setTitle("");
+      setContent("");
+      setContentFocused(false);
+      setScreen("feed");
+    } else if (cmd === "feed") {
+      setScreen("feed");
+      setPosts(getFeed());
+    } else if (cmd.startsWith("journal new ")) {
+      createPost("ridit", cmd.slice("journal new ".length));
+      setPosts(getFeed());
+      setScreen("feed");
+    } else if (cmd.startsWith("search ")) {
+      setPosts(search(cmd.slice("search ".length)));
+      setScreen("feed");
+    }
+
+    setHistory((h) => [...h, trimmed]);
     setValue("");
     setCursorOffset(0);
   }
@@ -81,6 +128,10 @@ export function App() {
 
   useInput(
     (input, key) => {
+      if (key.escape && screen !== "feed") {
+        setScreen("feed");
+        return;
+      }
       if (key.tab && value.startsWith("/")) {
         const matches = getMatchingCommands(value);
         if (matches.length === 0) return;
@@ -103,28 +154,53 @@ export function App() {
         shortcut.action();
       }
     },
-    { isActive: !loading },
+    { isActive: !loading && screen === "feed" },
   );
 
   const handleWheel = useCallback(
     (dir: "up" | "down") => {
+      if (screen !== "feed") return;
       setScrollTop((s) =>
         dir === "up" ? Math.max(0, s - 3) : Math.min(maxScroll, s + 3),
       );
     },
-    [maxScroll],
+    [maxScroll, screen],
   );
 
   useMouseWheel(handleWheel);
 
+  if (!authChecked) {
+    return <Text color={getTheme().secondaryText}>…</Text>;
+  }
+
+  if (!authed) {
+    return (
+      <Box flexDirection="column" height={rows}>
+        <Login columns={columns} onAuthed={() => setAuthed(true)} />
+      </Box>
+    );
+  }
+
   return (
     <Box flexDirection="column" height={rows}>
       <Box flexDirection="column" flexGrow={1}>
-        <Feed
-          posts={posts}
-          scrollTop={scrollTop}
-          viewportHeight={viewportHeight}
-        />
+        {screen === "feed" ? (
+          <Feed
+            posts={posts}
+            scrollTop={scrollTop}
+            viewportHeight={viewportHeight}
+          />
+        ) : (
+          <Create
+            columns={columns}
+            focus={focus}
+            setFocus={setFocus}
+            title={title}
+            setTitle={setTitle}
+            content={content}
+            setContent={setContent}
+          />
+        )}
       </Box>
       <Box paddingX={1}>
         <CommandSuggestions query={value} selectedIndex={selectedIndex} />
@@ -140,6 +216,7 @@ export function App() {
           placeholder={placeholder}
           // isDimmed={loading}
           onHistoryUp={onHistoryUp}
+          focus={focus === "command"}
           onHistoryDown={onHistoryDown}
           onHistoryReset={onHistoryReset}
           // onEscape={abort}

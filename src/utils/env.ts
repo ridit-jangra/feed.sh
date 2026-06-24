@@ -10,5 +10,6 @@ mkdirSync(FEED_BASE_DIR, { recursive: true });
 export const CONFIG_FILE = join(FEED_BASE_DIR, "config.json");
 export const BOOTSTRAP_FILE = join(FEED_BASE_DIR, "bootstrap.txt");
 export const AUTH_FILE = join(FEED_BASE_DIR, "auth.json");
+export const SESSION_PATH = join(FEED_BASE_DIR, "session.json");
 
 export const EDGE_BASE = "";

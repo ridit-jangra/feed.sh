@@ -55,3 +55,5 @@ type LocalCommand = {
 export type CommandContext = {
   setScreen: (screen: string) => void;
 };
+
+export type Focus = "command" | "title" | "content";

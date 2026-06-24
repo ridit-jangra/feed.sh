@@ -11,6 +11,7 @@
     "typescript": "^6.0.3"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.108.2",
     "ink": "^7.1.0",
     "react": "^19.2.7"
   }

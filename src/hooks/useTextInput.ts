@@ -34,6 +34,8 @@ export type UseTextInputProps = {
   externalOffset: number;
   onOffsetChange: (offset: number) => void;
   disabled?: boolean;
+  enterInsertsNewline?: boolean;
+  clearOnEscape?: boolean;
 };
 
 export type UseTextInputResult = {
@@ -63,6 +65,8 @@ export function useTextInput({
   onOffsetChange,
   onEscape,
   disabled,
+  enterInsertsNewline = false,
+  clearOnEscape = false,
 }: UseTextInputProps): UseTextInputResult {
   const offset = externalOffset;
   const setOffset = onOffsetChange;
@@ -89,7 +93,7 @@ export function useTextInput({
 
   function handleEscape() {
     maybeClearImagePasteErrorTimeout();
-    if (originalValue) {
+    if (clearOnEscape && originalValue) {
       onChange("");
     }
     onEscape?.();
@@ -145,6 +149,7 @@ export function useTextInput({
       return cursor.backspace().insert("\n");
     }
     if (key.meta) return cursor.insert("\n");
+    if (enterInsertsNewline) return cursor.insert("\n");
     if (!disabled) onSubmit?.(originalValue);
   }
 

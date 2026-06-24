@@ -51,4 +51,6 @@ export type CommandContext = {
   setScreen: (screen: string) => void;
 };
 
-export type Focus = "command" | "title" | "content";
+export type Focus = "command" | "title" | "content" | "feed";
+
+export type Screen = "feed" | "create" | "profile" | "thread";

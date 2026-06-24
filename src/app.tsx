@@ -1,4 +1,3 @@
-// src/App.tsx
 import React, { useCallback, useEffect, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { Feed } from "./screens/Feed";
@@ -20,7 +19,7 @@ import {
 } from "./db/posts";
 import { getMyProfile, getProfiles, getProfileByHandle } from "./db/profiles";
 import { getSession } from "./utils/auth";
-import { pointer } from "./utils/icons";
+import { line, pointer } from "./utils/icons";
 import { useRotatingPlaceholder } from "./hooks/useRotatingPlaceholder";
 import { useRealtimeFeed } from "./hooks/useRealtimeFeed";
 import { findShortcut } from "./utils/shortcuts";
@@ -28,21 +27,20 @@ import {
   CommandSuggestions,
   getMatchingCommands,
 } from "./components/CommandSuggestions";
-import type { Post } from "./types";
+import type { Focus, Post } from "./types";
 import type { Profile, ProfileWithStats } from "./db/profiles";
 import type { User } from "@supabase/supabase-js";
 import { useMouseWheel } from "./hooks/useMouseWheel";
+import { StatusBar } from "./components/StatusBar";
 
 export function App() {
   const { columns, rows } = useTerminalSize();
   const theme = getTheme();
 
-  // --- auth + profile ---
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [booting, setBooting] = useState(true);
 
-  // --- input / command bar ---
   const [value, setValue] = useState("");
   const [cursorOffset, setCursorOffset] = useState(0);
   const [lastTypedInput, setLastTypedInput] = useState("");
@@ -54,11 +52,8 @@ export function App() {
   const [screen, setScreen] = useState<
     "feed" | "create" | "profile" | "thread"
   >("feed");
-  const [focus, setFocus] = useState<"command" | "title" | "content">(
-    "command",
-  );
+  const [focus, setFocus] = useState<Focus>("feed");
 
-  // --- feed ---
   const [posts, setPosts] = useState<Post[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
   const [scrollTop, setScrollTop] = useState(0);
@@ -67,37 +62,32 @@ export function App() {
     new Map(),
   );
 
-  // --- profile view ---
   const [viewedProfile, setViewedProfile] = useState<ProfileWithStats | null>(
     null,
   );
   const [viewedNotFound, setViewedNotFound] = useState(false);
   const [viewedQuery, setViewedQuery] = useState("");
 
-  // --- thread / replies ---
   const [threadParent, setThreadParent] = useState<Post | null>(null);
   const [threadReplies, setThreadReplies] = useState<Post[]>([]);
   const [composingReply, setComposingReply] = useState(false);
   const [replyValue, setReplyValue] = useState("");
   const [replyOffset, setReplyOffset] = useState(0);
 
-  // --- compose form ---
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
 
   const placeholder = useRotatingPlaceholder(value.length === 0);
 
-  const INPUT_RESERVED = 2;
+  const INPUT_RESERVED = 4;
   const viewportHeight = rows - INPUT_RESERVED;
 
-  // author + title + content + meta + gap
   const totalLines = posts.reduce(
     (n, p) => n + 3 + (p.title ? 1 : 0) + p.content.split("\n").length,
     0,
   );
   const maxScroll = Math.max(0, totalLines - viewportHeight);
 
-  // --- boot: session → user → profile ---
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -125,7 +115,6 @@ export function App() {
     };
   }, []);
 
-  // fresh login post-boot → check profile
   useEffect(() => {
     if (booting || !user || profile) return;
     let cancelled = false;
@@ -139,7 +128,6 @@ export function App() {
     };
   }, [user, booting, profile]);
 
-  // load feed once onboarded
   useEffect(() => {
     if (!profile) return;
     setFeedLoading(true);
@@ -149,7 +137,6 @@ export function App() {
       .finally(() => setFeedLoading(false));
   }, [profile]);
 
-  // resolve author handles when posts/replies change
   useEffect(() => {
     const ids = [
       ...new Set([
@@ -164,17 +151,14 @@ export function App() {
       .catch((e) => console.error("author resolve failed", e));
   }, [posts, threadReplies, threadParent]);
 
-  // keep selection in range
   useEffect(() => {
     setSelectedPostIndex((i) => Math.min(i, Math.max(0, posts.length - 1)));
   }, [posts.length]);
 
-  // pin scroll to bottom
   useEffect(() => {
     setScrollTop(maxScroll);
   }, [maxScroll]);
 
-  // --- realtime ---
   const handleNewPost = useCallback((row: any) => {
     const post: Post = {
       id: row.id,
@@ -220,7 +204,7 @@ export function App() {
         }
         return parent;
       });
-      // skip own — already bumped locally in onSubmitReply
+
       if (row.author_id !== myId) {
         setPosts((prev) =>
           prev.map((p) =>
@@ -234,7 +218,6 @@ export function App() {
 
   useRealtimeFeed(handleNewPost, handleLikeChange, handleNewReply);
 
-  // --- commands ---
   async function onSubmit(input: string) {
     const trimmed = input.trim();
     if (!trimmed) return;
@@ -313,7 +296,6 @@ export function App() {
     setLastTypedInput("");
   }
 
-  // --- reply composer handlers ---
   async function onSubmitReply() {
     if (!threadParent || !replyValue.trim()) {
       setComposingReply(false);
@@ -343,40 +325,8 @@ export function App() {
     setComposingReply(false);
   }
 
-  // --- feed-screen input: select, like, open thread ---
   useInput(
     (input, key) => {
-      if (screen === "feed" && value === "") {
-        if (key.upArrow) {
-          setSelectedPostIndex((i) => Math.max(0, i - 1));
-          return;
-        }
-        if (key.downArrow) {
-          setSelectedPostIndex((i) => Math.min(posts.length - 1, i + 1));
-          return;
-        }
-        if (input === "l") {
-          const post = posts[selectedPostIndex];
-          if (post)
-            toggleLike(post.id).catch((e) => console.error("like failed", e));
-          return;
-        }
-        if (input === "r") {
-          const post = posts[selectedPostIndex];
-          if (post) {
-            setThreadParent(post);
-            setThreadReplies([]);
-            setComposingReply(false);
-            setScreen("thread");
-            getReplies(post.id)
-              .then(setThreadReplies)
-              .catch((e) => console.error("replies load failed", e));
-          }
-          return;
-        }
-      }
-
-      // command autocomplete
       if (key.tab && value.startsWith("/")) {
         const matches = getMatchingCommands(value);
         if (matches.length === 0) return;
@@ -403,10 +353,52 @@ export function App() {
     },
   );
 
-  // --- thread-screen input: reply / back ---
   useInput(
     (input, key) => {
-      if (composingReply) return;
+      if (key.escape) {
+        setFocus("command");
+        return;
+      }
+      if (key.upArrow) {
+        setSelectedPostIndex((i) => Math.max(0, i - 1));
+        return;
+      }
+      if (key.downArrow) {
+        setSelectedPostIndex((i) => Math.min(posts.length - 1, i + 1));
+        return;
+      }
+      if (input === "l") {
+        const post = posts[selectedPostIndex];
+        if (post)
+          toggleLike(post.id).catch((e) => console.error("like failed", e));
+        return;
+      }
+      if (input === "r" || key.return) {
+        const post = posts[selectedPostIndex];
+        if (post) {
+          setThreadParent(post);
+          setThreadReplies([]);
+          setComposingReply(false);
+          setScreen("thread");
+          getReplies(post.id).then(setThreadReplies).catch(console.error);
+        }
+        return;
+      }
+
+      if (input === ":" || input === "/") {
+        setFocus("command");
+        if (input === "/") {
+          setValue("/");
+          setCursorOffset(1);
+        }
+        return;
+      }
+    },
+    { isActive: !!profile && screen === "feed" && focus === "feed" },
+  );
+
+  useInput(
+    (input, key) => {
       if (input === "r") {
         setComposingReply(true);
         return;
@@ -430,8 +422,6 @@ export function App() {
   );
 
   useMouseWheel(handleWheel);
-
-  // --- render gates ---
 
   if (booting) {
     return <Text color={theme.secondaryText}>…</Text>;
@@ -465,6 +455,8 @@ export function App() {
             <Feed
               posts={posts}
               scrollTop={scrollTop}
+              focus={focus}
+              setFocus={setFocus}
               viewportHeight={viewportHeight}
               currentUserId={user.id}
               authorProfiles={authorProfiles}
@@ -507,24 +499,36 @@ export function App() {
         )}
       </Box>
 
-      <Box paddingX={1}>
-        <CommandSuggestions query={value} selectedIndex={selectedIndex} />
-        <Text color={theme.primary}>{pointer} </Text>
-        <TextInput
-          value={value}
-          onChange={setValue}
-          onSubmit={onSubmit}
-          onExit={() => process.exit(0)}
-          columns={columns - 6}
-          cursorOffset={cursorOffset}
-          onChangeCursorOffset={setCursorOffset}
-          placeholder={placeholder}
-          focus={(screen === "feed" || focus === "command") && !composingReply}
-          onHistoryUp={onHistoryUp}
-          onHistoryDown={onHistoryDown}
-          onHistoryReset={onHistoryReset}
-          highlightPastedText={true}
-        />
+      <Box flexDirection="column">
+        {/* <CommandSuggestions query={value} selectedIndex={selectedIndex} /> */}
+        <Text color={getTheme().secondaryBorder}>{line.repeat(columns)}</Text>
+        <Box paddingX={1}>
+          <Text color={theme.primary}>{pointer} </Text>
+          <TextInput
+            value={value}
+            onChange={setValue}
+            onSubmit={onSubmit}
+            onExit={() => process.exit(0)}
+            columns={columns - 6}
+            cursorOffset={cursorOffset}
+            onChangeCursorOffset={setCursorOffset}
+            placeholder={placeholder}
+            onHistoryUp={onHistoryUp}
+            onHistoryDown={onHistoryDown}
+            onHistoryReset={onHistoryReset}
+            highlightPastedText={true}
+            focus={focus === "command" && !composingReply}
+            onEscape={() => setFocus("feed")}
+          />
+        </Box>
+        <Text color={getTheme().secondaryBorder}>{line.repeat(columns)}</Text>
+        <Box>
+          <StatusBar
+            screen={screen}
+            loading={loading}
+            currentUserId={user.id}
+          />
+        </Box>
       </Box>
     </Box>
   );

@@ -1,8 +1,20 @@
-// src/screens/Feed.tsx
 import { Box, Text } from "ink";
 import { getTheme } from "../utils/theme";
-import type { Post } from "../types";
+import type { Focus, Post } from "../types";
 import type { Profile } from "../db/profiles";
+import { comment, heart, pointer } from "../utils/icons";
+import { applyMarkdown } from "../utils/markdown";
+
+type Props = {
+  posts: Post[];
+  scrollTop: number;
+  viewportHeight: number;
+  currentUserId: string | null;
+  authorProfiles: Map<string, Profile>;
+  selectedPostIndex: number;
+  focus: Focus;
+  setFocus: (f: Focus) => void;
+};
 
 export function Feed({
   posts,
@@ -11,14 +23,8 @@ export function Feed({
   currentUserId,
   authorProfiles,
   selectedPostIndex,
-}: {
-  posts: Post[];
-  scrollTop: number;
-  viewportHeight: number;
-  currentUserId: string | null;
-  authorProfiles: Map<string, Profile>;
-  selectedPostIndex: number;
-}) {
+  focus,
+}: Props) {
   const theme = getTheme();
   const lines: React.JSX.Element[] = [];
 
@@ -28,46 +34,40 @@ export function Feed({
     const author = authorProfiles.get(p.authorId);
     const label = isMine ? "you" : author ? `@${author.handle}` : "…";
 
-    // author line (with selection marker)
     lines.push(
       <Text
         key={`${p.id}-author`}
         bold
         color={isSelected ? theme.primary : theme.primary}
       >
-        {isSelected ? "▸ " : "  "}
+        {focus == "feed" && isSelected ? pointer + " " : "  "}
         {label}
       </Text>,
     );
 
-    // title
     if (p.title) {
       lines.push(
         <Text key={`${p.id}-title`} bold color={theme.text}>
-          {"  "}
           {p.title}
         </Text>,
       );
     }
 
-    // content
     p.content
       .split("\n")
       .forEach((l, i) =>
-        lines.push(<Text key={`${p.id}-line-${i}`}>{"  " + l}</Text>),
+        lines.push(<Text key={`${p.id}-line-${i}`}>{applyMarkdown(l)}</Text>),
       );
 
-    // meta: likes + replies
     lines.push(
-      <Text key={`${p.id}-meta`} color={theme.secondaryText}>
-        {"  ♥ "}
-        {p.likes}
-        {"   ↳ "}
-        {p.replies}
-      </Text>,
+      <Box key={`${p.id}-meta`}>
+        <Text color={theme.error}>{heart + " "}</Text>
+        <Text>{p.likes}</Text>
+        <Text color={theme.success}>{"    " + comment + " "}</Text>
+        <Text>{p.replies}</Text>
+      </Box>,
     );
 
-    // gap
     lines.push(<Text key={`${p.id}-gap`}> </Text>);
   });
 

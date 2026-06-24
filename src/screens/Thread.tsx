@@ -42,7 +42,6 @@ export function Thread({
 
   return (
     <Box flexDirection="column" paddingX={1} gap={0}>
-      {/* parent post */}
       <Text bold color={theme.primary}>
         {label(parent.authorId)}
       </Text>
@@ -60,7 +59,6 @@ export function Thread({
 
       <Text color={theme.secondaryText}>────────────────────────────</Text>
 
-      {/* replies */}
       {replies.length === 0 ? (
         <Text color={theme.secondaryText}>no replies yet</Text>
       ) : (
@@ -76,7 +74,6 @@ export function Thread({
         ))
       )}
 
-      {/* reply composer */}
       {composing ? (
         <Box marginTop={1}>
           <Text color={theme.primary}>{"↳ "}</Text>

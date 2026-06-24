@@ -36,7 +36,11 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",
+    "chalk": "^5.6.2",
+    "cli-highlight": "^2.1.11",
     "ink": "^7.1.0",
+    "ink-spinner": "^5.0.0",
+    "marked": "^18.0.5",
     "react": "^19.2.7"
   }
 }

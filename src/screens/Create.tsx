@@ -2,11 +2,12 @@ import React, { useState } from "react";
 import { Box, Text } from "ink";
 import TextInput from "../components/TextInput";
 import { getTheme } from "../utils/theme";
+import type { Focus } from "../types";
 
 type Props = {
   columns: number;
-  focus: "command" | "title" | "content";
-  setFocus: (f: "command" | "title" | "content") => void;
+  focus: Focus;
+  setFocus: (f: Focus) => void;
   title: string;
   setTitle: (v: string) => void;
   content: string;

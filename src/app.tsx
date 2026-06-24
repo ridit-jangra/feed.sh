@@ -2,13 +2,14 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { Feed } from "./screens/Feed";
 import { Create } from "./screens/Create";
-import type { User } from "@supabase/supabase-js";
-import TextInput from "./components/TextInput";
-import { getSession } from "./utils/auth";
 import { Login } from "./screens/Login";
+import { Setup } from "./screens/Setup";
+import TextInput from "./components/TextInput";
 import { getTheme } from "./utils/theme";
 import { useTerminalSize } from "./hooks/useTerminalSize";
-import { getFeed, createPost, search } from "./db/store";
+import { getFeed, createPost, search } from "./db/posts";
+import { getMyProfile, getProfileByHandle, getProfiles } from "./db/profiles";
+import { getSession } from "./utils/auth";
 import { pointer } from "./utils/icons";
 import { useRotatingPlaceholder } from "./hooks/useRotatingPlaceholder";
 import { findShortcut } from "./utils/shortcuts";
@@ -16,75 +17,163 @@ import {
   CommandSuggestions,
   getMatchingCommands,
 } from "./components/CommandSuggestions";
-import type { Focus, Post } from "./types";
+import type { Post } from "./types";
+import type { Profile, ProfileWithStats } from "./db/profiles";
+import type { User } from "@supabase/supabase-js";
 import { useMouseWheel } from "./hooks/useMouseWheel";
+import { ProfileView } from "./screens/ProfileView";
 
 export function App() {
   const { columns, rows } = useTerminalSize();
-  const [value, setValue] = useState("");
+  const theme = getTheme();
+
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [booting, setBooting] = useState(true);
+
+  const [value, setValue] = useState("");
   const [cursorOffset, setCursorOffset] = useState(0);
-  const [focus, setFocus] = useState<Focus>("command");
-  const [screen, setScreen] = useState<"feed" | "create">("feed");
-  const [posts, setPosts] = useState<Post[]>(() => getFeed());
-  const [scrollTop, setScrollTop] = useState(0);
   const [lastTypedInput, setLastTypedInput] = useState("");
-  const [loading, setLoading] = useState(false);
   const [historyIndex, setHistoryIndex] = useState(0);
+  const [history, setHistory] = useState<string[]>([]);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [loading, setLoading] = useState(false);
+
+  const [screen, setScreen] = useState<"feed" | "create" | "profile">("feed");
+  const [viewedProfile, setViewedProfile] = useState<ProfileWithStats | null>(
+    null,
+  );
+  const [viewedNotFound, setViewedNotFound] = useState(false);
+  const [viewedQuery, setViewedQuery] = useState("");
+  const [focus, setFocus] = useState<"command" | "title" | "content">(
+    "command",
+  );
+
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [feedLoading, setFeedLoading] = useState(true);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [authorProfiles, setAuthorProfiles] = useState<Map<string, Profile>>(
+    new Map(),
+  );
+
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [contentFocused, setContentFocused] = useState(false);
-  const [history, setHistory] = useState<string[]>([]);
-  const [authChecked, setAuthChecked] = useState(false);
-  const [authed, setAuthed] = useState(false);
-  const [selectedIndex, setSelectedIndex] = useState(0);
+
+  const placeholder = useRotatingPlaceholder(value.length === 0);
 
   const INPUT_RESERVED = 2;
   const viewportHeight = rows - INPUT_RESERVED;
-  const placeholder = useRotatingPlaceholder(value.length === 0);
 
   const totalLines = posts.reduce(
-    (n, p) => n + 2 + p.content.split("\n").length,
+    (n, p) => n + 2 + (p.title ? 1 : 0) + p.content.split("\n").length,
     0,
   );
   const maxScroll = Math.max(0, totalLines - viewportHeight);
 
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const session = await getSession();
+        const u = session?.user ?? null;
+        if (cancelled) return;
+        setUser(u);
+
+        if (u) {
+          const p = await getMyProfile().catch((e) => {
+            console.error("profile check failed", e);
+            return null;
+          });
+          if (cancelled) return;
+          setProfile(p);
+        }
+      } catch (e) {
+        console.error("boot failed", e);
+      } finally {
+        if (!cancelled) setBooting(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (booting || !user || profile) return;
+    let cancelled = false;
+    getMyProfile()
+      .then((p) => {
+        if (!cancelled) setProfile(p);
+      })
+      .catch((e) => console.error("profile check failed", e));
+    return () => {
+      cancelled = true;
+    };
+  }, [user, booting, profile]);
+
+  useEffect(() => {
+    if (!profile) return;
+    setFeedLoading(true);
+    getFeed()
+      .then(setPosts)
+      .catch((e) => console.error("feed load failed", e))
+      .finally(() => setFeedLoading(false));
+  }, [profile]);
+
+  useEffect(() => {
+    if (posts.length === 0) return;
+    const ids = [...new Set(posts.map((p) => p.authorId))];
+    getProfiles(ids)
+      .then(setAuthorProfiles)
+      .catch((e) => console.error("author resolve failed", e));
+  }, [posts]);
+
+  useEffect(() => {
     setScrollTop(maxScroll);
   }, [maxScroll]);
 
-  useEffect(() => {
-    getSession().then((session) => {
-      setUser(session?.user ?? null);
-      setAuthChecked(true);
-    });
-  }, []);
-
-  function onSubmit(input: string) {
+  async function onSubmit(input: string) {
     const trimmed = input.trim();
     if (!trimmed) return;
-
     const cmd = trimmed.startsWith("/") ? trimmed.slice(1) : trimmed;
 
-    if (cmd === "create") {
-      setScreen("create");
-      setFocus("title");
-    } else if (cmd === "done" && screen === "create") {
-      const body = title.trim() ? `# ${title.trim()}\n${content}` : content;
-      if (content.trim() || title.trim()) {
-        createPost(user!.id, title.trim() || null, content);
-        setPosts(getFeed());
+    try {
+      if (cmd === "create") {
+        setScreen("create");
+        setFocus("title");
+      } else if (cmd === "done" && screen === "create") {
+        if (content.trim() || title.trim()) {
+          const newPost = await createPost(title.trim() || null, content);
+          setPosts((prev) => [newPost, ...prev]);
+        }
+        setTitle("");
+        setContent("");
+        setFocus("command");
+        setScreen("feed");
+      } else if (cmd === "profile" || cmd.startsWith("profile ")) {
+        const arg = cmd.slice("profile".length).trim();
+        const handle = arg ? arg : profile!.handle;
+        setViewedQuery(handle);
+        setViewedNotFound(false);
+        setViewedProfile(null);
+        setScreen("profile");
+        try {
+          const found = await getProfileByHandle(handle);
+          if (found) setViewedProfile(found);
+          else setViewedNotFound(true);
+        } catch (e) {
+          console.error("profile lookup failed", e);
+          setViewedNotFound(true);
+        }
+      } else if (cmd === "feed") {
+        setPosts(await getFeed());
+        setScreen("feed");
+      } else if (cmd.startsWith("search ")) {
+        setPosts(await search(cmd.slice("search ".length)));
+        setScreen("feed");
       }
-      setTitle("");
-      setContent("");
-      setFocus("command");
-      setScreen("feed");
-    } else if (cmd === "feed") {
-      setScreen("feed");
-      setPosts(getFeed());
-    } else if (cmd.startsWith("search ")) {
-      setPosts(search(cmd.slice("search ".length)));
-      setScreen("feed");
+    } catch (e) {
+      console.error("command failed", e);
     }
 
     setHistory((h) => [...h, trimmed]);
@@ -126,10 +215,6 @@ export function App() {
 
   useInput(
     (input, key) => {
-      if (key.escape && screen !== "feed") {
-        setScreen("feed");
-        return;
-      }
       if (key.tab && value.startsWith("/")) {
         const matches = getMatchingCommands(value);
         if (matches.length === 0) return;
@@ -152,7 +237,10 @@ export function App() {
         shortcut.action();
       }
     },
-    { isActive: !loading && screen === "feed" },
+    {
+      isActive:
+        !!profile && !loading && screen === "feed" && focus === "command",
+    },
   );
 
   const handleWheel = useCallback(
@@ -167,8 +255,8 @@ export function App() {
 
   useMouseWheel(handleWheel);
 
-  if (!authChecked) {
-    return <Text color={getTheme().secondaryText}>…</Text>;
+  if (booting) {
+    return <Text color={theme.secondaryText}>…</Text>;
   }
 
   if (!user) {
@@ -179,17 +267,32 @@ export function App() {
     );
   }
 
+  if (!profile) {
+    return (
+      <Box flexDirection="column" height={rows}>
+        <Setup columns={columns} onDone={setProfile} />
+      </Box>
+    );
+  }
+
   return (
     <Box flexDirection="column" height={rows}>
       <Box flexDirection="column" flexGrow={1}>
         {screen === "feed" ? (
-          <Feed
-            posts={posts}
-            scrollTop={scrollTop}
-            viewportHeight={viewportHeight}
-            currentUserId={user.id}
-          />
-        ) : (
+          feedLoading ? (
+            <Box paddingX={1}>
+              <Text color={theme.secondaryText}>loading feed…</Text>
+            </Box>
+          ) : (
+            <Feed
+              posts={posts}
+              scrollTop={scrollTop}
+              viewportHeight={viewportHeight}
+              currentUserId={user.id}
+              authorProfiles={authorProfiles}
+            />
+          )
+        ) : screen === "create" ? (
           <Create
             columns={columns}
             focus={focus}
@@ -199,11 +302,19 @@ export function App() {
             content={content}
             setContent={setContent}
           />
+        ) : (
+          <ProfileView
+            profile={viewedProfile}
+            isMe={viewedProfile?.id === user.id}
+            notFound={viewedNotFound}
+            query={viewedQuery}
+          />
         )}
       </Box>
+
       <Box paddingX={1}>
         <CommandSuggestions query={value} selectedIndex={selectedIndex} />
-        <Text color={getTheme().primary}>{pointer} </Text>
+        <Text color={theme.primary}>{pointer} </Text>
         <TextInput
           value={value}
           onChange={setValue}
@@ -213,12 +324,10 @@ export function App() {
           cursorOffset={cursorOffset}
           onChangeCursorOffset={setCursorOffset}
           placeholder={placeholder}
-          // isDimmed={loading}
+          focus={screen === "feed" || focus === "command"}
           onHistoryUp={onHistoryUp}
-          focus={focus === "command"}
           onHistoryDown={onHistoryDown}
           onHistoryReset={onHistoryReset}
-          // onEscape={abort}
           highlightPastedText={true}
         />
       </Box>

@@ -1,27 +1,32 @@
 import { Box, Text } from "ink";
 import { getTheme } from "../utils/theme";
 import type { Post } from "../types";
+import type { Profile } from "../db/profiles";
 
 export function Feed({
   posts,
   scrollTop,
   viewportHeight,
   currentUserId,
+  authorProfiles,
 }: {
   posts: Post[];
   scrollTop: number;
   viewportHeight: number;
   currentUserId: string | null;
+  authorProfiles: Map<string, Profile>;
 }) {
   const theme = getTheme();
   const lines: React.JSX.Element[] = [];
 
   posts.forEach((p) => {
     const isMine = p.authorId === currentUserId;
+    const author = authorProfiles.get(p.authorId);
+    const label = isMine ? "you" : author ? `@${author.handle}` : "…"; // not resolved yet
 
     lines.push(
       <Text key={`${p.id}-author`} bold color={theme.primary}>
-        {isMine ? "you" : p.authorId}
+        {label}
       </Text>,
     );
 

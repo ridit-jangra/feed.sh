@@ -533,7 +533,11 @@ export function App() {
             onHistoryReset={onHistoryReset}
             highlightPastedText={true}
             focus={focus === "command" && !composingReply}
-            onEscape={() => setFocus("feed")}
+            onEscape={() => {
+              // never blur the command input; on a non-feed screen, Esc just
+              // takes you back to the feed with the input still focused
+              if (screen !== "feed") setScreen("feed");
+            }}
           />
         </Box>
         <Text color={getTheme().secondaryBorder}>{line.repeat(columns)}</Text>

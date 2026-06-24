@@ -4,8 +4,11 @@ import { join, dirname } from "path";
 import { homedir } from "os";
 import { SESSION_PATH } from "./env";
 
-const SUPABASE_URL = process.env.SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY!;
+const SUPABASE_URL =
+  process.env.SUPABASE_URL ?? "https://iezrpwcedsdasziyzqzv.supabase.co";
+const SUPABASE_ANON_KEY =
+  process.env.SUPABASE_ANON_KEY ??
+  "sb_publishable_JOEbpf48NDnABgGmNo9aoQ_wBoPrgw4";
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   throw new Error(

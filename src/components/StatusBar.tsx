@@ -9,7 +9,7 @@ import type { Screen } from "../types";
 type Props = {
   loading: boolean;
   screen: Screen;
-  currentUserId: string | null;
+  handle: string | null;
 };
 
 function getScreenColor(screen: Screen) {
@@ -28,7 +28,7 @@ function getScreenColor(screen: Screen) {
 export function StatusBar({
   loading = false,
   screen,
-  currentUserId,
+  handle,
 }: Props): React.ReactNode {
   const { columns } = useTerminalSize();
 
@@ -51,7 +51,7 @@ export function StatusBar({
           <>
             <Box gap={1}>
               <Text color={getTheme().warning}>{diamond}</Text>
-              <Text>{currentUserId}</Text>
+              <Text>{handle ? `@${handle}` : ""}</Text>
             </Box>
 
             {/* {coins !== null && (

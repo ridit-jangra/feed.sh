@@ -56,7 +56,7 @@ export function App() {
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
-  const [scrollTop, setScrollTop] = useState(0);
+  const [topPost, setTopPost] = useState(0);
   const [selectedPostIndex, setSelectedPostIndex] = useState(0);
   const [authorProfiles, setAuthorProfiles] = useState<Map<string, Profile>>(
     new Map(),
@@ -79,14 +79,11 @@ export function App() {
 
   const placeholder = useRotatingPlaceholder(value.length === 0);
 
-  const INPUT_RESERVED = 4;
+  const INPUT_RESERVED = 5;
   const viewportHeight = rows - INPUT_RESERVED;
 
-  const totalLines = posts.reduce(
-    (n, p) => n + 3 + (p.title ? 1 : 0) + p.content.split("\n").length,
-    0,
-  );
-  const maxScroll = Math.max(0, totalLines - viewportHeight);
+  const postHeight = (p: Post) =>
+    3 + (p.title ? 1 : 0) + p.content.split("\n").length;
 
   useEffect(() => {
     let cancelled = false;
@@ -156,8 +153,24 @@ export function App() {
   }, [posts.length]);
 
   useEffect(() => {
-    setScrollTop(maxScroll);
-  }, [maxScroll]);
+    if (!posts[selectedPostIndex]) return;
+    setTopPost((tp) => {
+      // scroll up so the selected post is never above the viewport
+      let top = Math.min(tp, selectedPostIndex);
+      // scroll down until the block [top..selected] fits the viewport
+      let used = 0;
+      for (let i = top; i <= selectedPostIndex; i++) {
+        const p = posts[i];
+        if (p) used += postHeight(p);
+      }
+      while (top < selectedPostIndex && used > viewportHeight - 1) {
+        const p = posts[top];
+        if (p) used -= postHeight(p);
+        top++;
+      }
+      return top;
+    });
+  }, [selectedPostIndex, posts, viewportHeight]);
 
   const handleNewPost = useCallback((row: any) => {
     const post: Post = {
@@ -414,11 +427,13 @@ export function App() {
   const handleWheel = useCallback(
     (dir: "up" | "down") => {
       if (screen !== "feed") return;
-      setScrollTop((s) =>
-        dir === "up" ? Math.max(0, s - 3) : Math.min(maxScroll, s + 3),
+      setTopPost((tp) =>
+        dir === "up"
+          ? Math.max(0, tp - 1)
+          : Math.min(Math.max(0, posts.length - 1), tp + 1),
       );
     },
-    [maxScroll, screen],
+    [screen, posts.length],
   );
 
   useMouseWheel(handleWheel);
@@ -454,7 +469,7 @@ export function App() {
           ) : (
             <Feed
               posts={posts}
-              scrollTop={scrollTop}
+              topPost={topPost}
               focus={focus}
               setFocus={setFocus}
               viewportHeight={viewportHeight}
@@ -526,7 +541,7 @@ export function App() {
           <StatusBar
             screen={screen}
             loading={loading}
-            currentUserId={user.id}
+            handle={profile.handle}
           />
         </Box>
       </Box>

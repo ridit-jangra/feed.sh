@@ -1,11 +1,35 @@
 {
-  "name": "feed.sh",
-  "module": "index.ts",
+  "name": "@ridit/feed.sh",
+  "version": "0.1.0",
+  "description": "Doom scrolling, in your terminal",
+  "author": "Ridit Jangra <riditjangra09@gmail.com> (https://ridit.space)",
+  "main": "dist/index.mjs",
+  "bin": {
+    "feed.sh": "dist/index.mjs"
+  },
+  "license": "MIT",
   "type": "module",
-  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ridit-jangra/Feed.sh.git"
+  },
+  "scripts": {
+    "build": "bun build src/index.tsx --target node --outfile dist/index.mjs --external react-devtools-core --external ink --external react --external chalk --external commander --external figures --external ink-spinner",
+    "postbuild": "node -e \"const fs=require('fs');const f='dist/index.mjs';fs.writeFileSync(f,'#!/usr/bin/env node\\n'+fs.readFileSync(f,'utf8'))\"",
+    "release": "node scripts/release.js",
+    "release:minor": "node scripts/release.js minor",
+    "release:major": "node scripts/release.js major",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "format": "prettier --write src/",
+    "format:check": "prettier --check src/",
+    "prepublishOnly": "bun run build",
+    "dev": "bun src"
+  },
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/react": "^19.2.17"
+    "@types/react": "^19.2.17",
+    "@eslint/js": "^10.0.1"
   },
   "peerDependencies": {
     "typescript": "^6.0.3"

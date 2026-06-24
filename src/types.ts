@@ -1,18 +1,13 @@
-export interface Post {
+export type Post = {
   id: string;
   authorId: string;
-
+  title: string | null;
   content: string;
-
-  createdAt: Date;
-  updatedAt?: Date;
-
   parentId: string | null;
-
+  createdAt: Date;
   likes: number;
   replies: number;
-}
-
+};
 export interface Theme {
   name: string;
   primary: string;

@@ -16,6 +16,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS posts (
     id          TEXT PRIMARY KEY,
     author_id   TEXT NOT NULL,
+    title       TEXT,
     content     TEXT NOT NULL,
     parent_id   TEXT REFERENCES posts(id) ON DELETE CASCADE,
     created_at  INTEGER NOT NULL,
@@ -35,11 +36,6 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_likes_post     ON likes(post_id);
 `);
 
-const insertPostStmt = db.query(`
-  INSERT INTO posts (id, author_id, content, parent_id, created_at, synced)
-  VALUES ($id, $author, $content, $parent, $created, 0)
-`);
-
 const toggleLikeInsert = db.query(`
   INSERT OR IGNORE INTO likes (post_id, user_id, created_at, synced)
   VALUES ($post, $user, $created, 0)
@@ -53,10 +49,10 @@ const hasLikeStmt = db.query(
 
 const feedStmt = db.query(`
   SELECT
-    p.id, p.author_id AS authorId, p.content,
+    p.id, p.author_id AS authorId, p.title, p.content,
     p.parent_id AS parentId, p.created_at AS createdAt,
-    (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id)              AS likes,
-    (SELECT COUNT(*) FROM posts r WHERE r.parent_id = p.id)           AS replies
+    (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id)    AS likes,
+    (SELECT COUNT(*) FROM posts r WHERE r.parent_id = p.id)  AS replies
   FROM posts p
   WHERE p.parent_id IS NULL
   ORDER BY p.created_at DESC
@@ -76,18 +72,24 @@ const repliesStmt = db.query(`
 
 const searchStmt = db.query(`
   SELECT
-    p.id, p.author_id AS authorId, p.content,
+    p.id, p.author_id AS authorId, p.title, p.content,
     p.parent_id AS parentId, p.created_at AS createdAt,
-    (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id)              AS likes,
-    (SELECT COUNT(*) FROM posts r WHERE r.parent_id = p.id)           AS replies
+    (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id)    AS likes,
+    (SELECT COUNT(*) FROM posts r WHERE r.parent_id = p.id)  AS replies
   FROM posts p
-  WHERE p.content LIKE $q
+  WHERE p.content LIKE $q OR p.title LIKE $q
   ORDER BY p.created_at DESC
   LIMIT $limit
 `);
 
+const insertPostStmt = db.query(`
+  INSERT INTO posts (id, author_id, title, content, parent_id, created_at, synced)
+  VALUES ($id, $author, $title, $content, $parent, $created, 0)
+`);
+
 export function createPost(
   authorId: string,
+  title: string | null,
   content: string,
   parentId: string | null = null,
 ): Post {
@@ -96,6 +98,7 @@ export function createPost(
   insertPostStmt.run({
     $id: id,
     $author: authorId,
+    $title: title,
     $content: content,
     $parent: parentId,
     $created: createdAtMs,
@@ -103,6 +106,7 @@ export function createPost(
   return {
     id,
     authorId,
+    title,
     content,
     parentId,
     createdAt: new Date(createdAtMs),

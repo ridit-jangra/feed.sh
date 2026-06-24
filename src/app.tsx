@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { Feed } from "./screens/Feed";
 import { Create } from "./screens/Create";
+import type { User } from "@supabase/supabase-js";
 import TextInput from "./components/TextInput";
 import { getSession } from "./utils/auth";
 import { Login } from "./screens/Login";
@@ -21,6 +22,7 @@ import { useMouseWheel } from "./hooks/useMouseWheel";
 export function App() {
   const { columns, rows } = useTerminalSize();
   const [value, setValue] = useState("");
+  const [user, setUser] = useState<User | null>(null);
   const [cursorOffset, setCursorOffset] = useState(0);
   const [focus, setFocus] = useState<Focus>("command");
   const [screen, setScreen] = useState<"feed" | "create">("feed");
@@ -53,7 +55,7 @@ export function App() {
 
   useEffect(() => {
     getSession().then((session) => {
-      setAuthed(!!session);
+      setUser(session?.user ?? null);
       setAuthChecked(true);
     });
   }, []);
@@ -69,21 +71,17 @@ export function App() {
       setFocus("title");
     } else if (cmd === "done" && screen === "create") {
       const body = title.trim() ? `# ${title.trim()}\n${content}` : content;
-      if (body.trim()) {
-        createPost("ridit", body);
+      if (content.trim() || title.trim()) {
+        createPost(user!.id, title.trim() || null, content);
         setPosts(getFeed());
       }
       setTitle("");
       setContent("");
-      setContentFocused(false);
+      setFocus("command");
       setScreen("feed");
     } else if (cmd === "feed") {
       setScreen("feed");
       setPosts(getFeed());
-    } else if (cmd.startsWith("journal new ")) {
-      createPost("ridit", cmd.slice("journal new ".length));
-      setPosts(getFeed());
-      setScreen("feed");
     } else if (cmd.startsWith("search ")) {
       setPosts(search(cmd.slice("search ".length)));
       setScreen("feed");
@@ -173,10 +171,10 @@ export function App() {
     return <Text color={getTheme().secondaryText}>…</Text>;
   }
 
-  if (!authed) {
+  if (!user) {
     return (
       <Box flexDirection="column" height={rows}>
-        <Login columns={columns} onAuthed={() => setAuthed(true)} />
+        <Login columns={columns} onAuthed={(_s, u) => setUser(u)} />
       </Box>
     );
   }
@@ -189,6 +187,7 @@ export function App() {
             posts={posts}
             scrollTop={scrollTop}
             viewportHeight={viewportHeight}
+            currentUserId={user.id}
           />
         ) : (
           <Create
